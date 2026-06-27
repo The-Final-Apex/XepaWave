@@ -1,0 +1,26 @@
+[0;1;32m●[0m pipewire.service - PipeWire Multimedia Service
+     Loaded: loaded (]8;;file://crocodile/usr/lib/systemd/user/pipewire.service/usr/lib/systemd/user/pipewire.service]8;;; [0;1;38:5:185mdisabled[0m; preset: [0;1;38:5:185mdisabled[0m)
+    Drop-In: /usr/lib/systemd/user/pipewire.service.d
+             └─]8;;file://crocodile/usr/lib/systemd/user/pipewire.service.d/00-uresourced.conf00-uresourced.conf]8;;
+             /usr/lib/systemd/user/service.d
+             └─]8;;file://crocodile/usr/lib/systemd/user/service.d/10-timeout-abort.conf10-timeout-abort.conf]8;;
+     Active: [0;1;32mactive (running)[0m since Wed 2026-04-08 10:41:10 EAT; 1 day 7h ago
+ Invocation: cd72bcb365bf4e8c866893ab0937fe18
+TriggeredBy: [0;1;32m●[0m pipewire.socket
+   Main PID: 2099 (pipewire)
+      Tasks: 3[0;38;5;245m (limit: 18598)[0m
+     Memory: 9.7M (peak: 10.7M swap: 1.8M swap peak: 3.2M)
+        CPU: 6min 22.811s
+     CGroup: /user.slice/user-1000.slice/user@1000.service/session.slice/pipewire.service
+             └─[0;38;5;245m2099 /usr/bin/pipewire[0m
+
+Apr 09 17:57:55 crocodile pipewire[2099]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mpw.node: (PortAudio-73) xrun state:0x7f55eb2f1008 pending:0/1 s:66471232203517 a:58719773225506 f:58719773228262 waiting:18446736322250573605 process:2756 status:triggered[0m
+Apr 09 17:57:57 crocodile pipewire[2099]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mpw.node: (Dummy-Driver-29) graph xrun not-triggered (187 suppressed)[0m
+Apr 09 17:57:57 crocodile pipewire[2099]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mpw.node: (Dummy-Driver-29) xrun state:0x7f55fa779008 pending:1/2 s:66473216205727 a:66473237539452 f:66473237541038 waiting:21333725 process:1586 status:triggered[0m
+Apr 09 17:57:57 crocodile pipewire[2099]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mpw.node: (PortAudio-73) xrun state:0x7f55eb2f1008 pending:0/1 s:66473237539452 a:58719773225506 f:58719773228262 waiting:18446736320245237670 process:2756 status:triggered[0m
+Apr 09 17:57:59 crocodile pipewire[2099]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mpw.node: (Dummy-Driver-29) graph xrun not-triggered (187 suppressed)[0m
+Apr 09 17:57:59 crocodile pipewire[2099]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mpw.node: (Dummy-Driver-29) xrun state:0x7f55fa779008 pending:1/2 s:66475221525963 a:66475242888723 f:66475242890251 waiting:21362760 process:1528 status:triggered[0m
+Apr 09 17:57:59 crocodile pipewire[2099]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mpw.node: (PortAudio-73) xrun state:0x7f55eb2f1008 pending:0/1 s:66475242888723 a:58719773225506 f:58719773228262 waiting:18446736318239888399 process:2756 status:triggered[0m
+Apr 09 17:58:01 crocodile pipewire[2099]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mpw.node: (Dummy-Driver-29) graph xrun not-triggered (187 suppressed)[0m
+Apr 09 17:58:01 crocodile pipewire[2099]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mpw.node: (Dummy-Driver-29) xrun state:0x7f55fa779008 pending:1/2 s:66477226919087 a:66477248212903 f:66477248214329 waiting:21293816 process:1426 status:triggered[0m
+Apr 09 17:58:01 crocodile pipewire[2099]: [0;1;38:5:185m[0;1;39m[0;1;38:5:185mpw.node: (PortAudio-73) xrun state:0x7f55eb2f1008 pending:0/1 s:66477248212903 a:58719773225506 f:58719773228262 waiting:18446736316234564219 process:2756 status:triggered[0m

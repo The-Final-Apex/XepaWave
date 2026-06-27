@@ -1,0 +1,1003 @@
+"""
+Airwave MIDI Controller - Working with MediaPipe 0.10+
+Beautiful Original UI + Working Camera + High-Performance Optimizations
+"""
+
+import cv2
+import numpy as np
+import pygame.midi
+import tkinter as tk
+from tkinter import ttk, messagebox
+import json
+import os
+from collections import deque
+import sys
+import threading
+import time
+import math
+
+# MediaPipe 0.10+ imports
+try:
+    import mediapipe as mp
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
+    HAS_MEDIAPIPE = True
+except ImportError:
+    HAS_MEDIAPIPE = False
+    print("MediaPipe not installed. Run: pip install mediapipe")
+
+class FastSimpleHandDetector:
+    """Optimized hand detector for high FPS (60+ FPS)"""
+    
+    def __init__(self, max_fps=60):
+        self.frame_count = 0
+        self.skip_frames = 1  # Process every frame for best speed
+        self.last_results = None
+        self.detector = None
+        self.timestamp = 0
+        self.max_fps = max_fps
+        self.frame_time = 1.0 / max_fps
+        
+        self.setup_detector()
+    
+    def setup_detector(self):
+        """Setup MediaPipe hand detector optimized for speed"""
+        try:
+            # Download model if needed
+            model_path = "hand_landmarker.task"
+            if not os.path.exists(model_path):
+                print("Downloading hand model...")
+                import urllib.request
+                url = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+                urllib.request.urlretrieve(url, model_path)
+                print("✓ Model downloaded")
+            
+            # Optimized settings for speed
+            base_options = python.BaseOptions(model_asset_path=model_path)
+            options = vision.HandLandmarkerOptions(
+                base_options=base_options,
+                num_hands=2,
+                min_hand_detection_confidence=0.3,  # Lower for speed
+                min_hand_presence_confidence=0.3,
+                min_tracking_confidence=0.3,
+                running_mode=vision.RunningMode.VIDEO
+            )
+            
+            self.detector = vision.HandLandmarker.create_from_options(options)
+            print("✓ Fast hand detector initialized (60+ FPS capable)")
+            
+        except Exception as e:
+            print(f"Detector init error: {e}")
+            self.detector = None
+    
+    def detect(self, frame):
+        """Fast hand detection"""
+        if not self.detector:
+            return None
+        
+        try:
+            # Convert to RGB (optimized)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+            
+            # Detect
+            self.timestamp += int(1000 / self.max_fps)
+            results = self.detector.detect_for_video(mp_image, self.timestamp)
+            
+            # Convert to simpler format
+            if results and results.hand_landmarks:
+                return self.convert_results(results)
+            return None
+                
+        except Exception as e:
+            return self.last_results
+    
+    def convert_results(self, results):
+        """Convert to simpler format compatible with our code (optimized)"""
+        # Using __slots__ for memory efficiency
+        class SimplePoint:
+            __slots__ = ('x', 'y', 'z')
+            def __init__(self, x, y, z):
+                self.x = x
+                self.y = y
+                self.z = z
+        
+        class SimpleHand:
+            __slots__ = ('landmark',)
+            def __init__(self):
+                self.landmark = []
+        
+        class SimpleResults:
+            __slots__ = ('multi_hand_landmarks', 'multi_handedness')
+            def __init__(self):
+                self.multi_hand_landmarks = []
+                self.multi_handedness = []
+        
+        simple = SimpleResults()
+        
+        if results.hand_landmarks:
+            for i, landmarks in enumerate(results.hand_landmarks):
+                hand = SimpleHand()
+                # Use list comprehension for speed
+                hand.landmark = [SimplePoint(lm.x, lm.y, lm.z) for lm in landmarks]
+                simple.multi_hand_landmarks.append(hand)
+                
+                # Add handedness
+                class SimpleLabel:
+                    __slots__ = ('label',)
+                    def __init__(self, label):
+                        self.label = label
+                
+                class SimpleClass:
+                    __slots__ = ('classification',)
+                    def __init__(self, label):
+                        self.classification = [SimpleLabel(label)]
+                
+                if results.handedness and i < len(results.handedness):
+                    label = results.handedness[i][0].category_name
+                else:
+                    label = "Right" if i == 0 else "Left"
+                
+                simple.multi_handedness.append(SimpleClass(label))
+        
+        return simple
+
+class OptimizedMotionTrail:
+    """Optimized hand motion trail effect for high FPS"""
+    def __init__(self, max_length=15):  # Reduced length for speed
+        self.trails = {}
+        self.max_length = max_length
+        
+    def add_point(self, hand_id, position):
+        if hand_id not in self.trails:
+            self.trails[hand_id] = deque(maxlen=self.max_length)
+        self.trails[hand_id].append(position)
+    
+    def draw_trails(self, frame):
+        for hand_id, trail in self.trails.items():
+            if len(trail) < 2:
+                continue
+            color = (0, 150, 255) if "left" in hand_id else (255, 100, 0)
+            # Use simplified drawing for speed
+            for i in range(len(trail) - 1):
+                if trail[i] and trail[i+1]:
+                    alpha = i / len(trail)
+                    trail_color = tuple(int(c * alpha) for c in color)
+                    start = (int(trail[i][0]), int(trail[i][1]))
+                    end = (int(trail[i+1][0]), int(trail[i+1][1]))
+                    cv2.line(frame, start, end, trail_color, 2)
+
+class OptimizedHandVisualizer:
+    """Optimized hand skeleton visualization for high FPS"""
+    
+    def __init__(self):
+        self.motion_trail = OptimizedMotionTrail()
+        
+    def draw_hand_skeleton(self, frame, hand_landmarks, handedness, parameters, hand_id):
+        h, w, _ = frame.shape
+        
+        if handedness == "Left":
+            base_color = (0, 150, 255)
+        else:
+            base_color = (255, 100, 0)
+        
+        wrist = hand_landmarks.landmark[0]
+        wrist_pos = (int(wrist.x * w), int(wrist.y * h))
+        self.motion_trail.add_point(hand_id, wrist_pos)
+        
+        # Simplified connections (only main joints for speed)
+        connections = [
+            (0, 1), (1, 2), (2, 3), (3, 4),  # Thumb
+            (0, 5), (5, 6), (6, 7), (7, 8),  # Index
+            (0, 9), (9, 10), (10, 11), (11, 12),  # Middle
+            (0, 13), (13, 14), (14, 15), (15, 16),  # Ring
+            (0, 17), (17, 18), (18, 19), (19, 20)  # Pinky
+        ]
+        
+        # Draw connections without glow effect for speed
+        for start_idx, end_idx in connections:
+            if start_idx < len(hand_landmarks.landmark) and end_idx < len(hand_landmarks.landmark):
+                start = hand_landmarks.landmark[start_idx]
+                end = hand_landmarks.landmark[end_idx]
+                start_point = (int(start.x * w), int(start.y * h))
+                end_point = (int(end.x * w), int(end.y * h))
+                cv2.line(frame, start_point, end_point, base_color, 2)
+        
+        # Draw joints (simplified)
+        for i, lm in enumerate(hand_landmarks.landmark):
+            cx, cy = int(lm.x * w), int(lm.y * h)
+            radius = 3 if i in [4, 8, 12, 16, 20] else 2
+            cv2.circle(frame, (cx, cy), radius, base_color, -1)
+        
+        return wrist_pos
+    
+    def draw_all_effects(self, frame):
+        self.motion_trail.draw_trails(frame)
+    
+    def draw_parameter_feedback(self, frame, parameters, boolean_params):
+        h, w, _ = frame.shape
+        
+        # Simplified semi-transparent background
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (5, 5), (250, 200), (0, 0, 0), -1)
+        cv2.rectangle(overlay, (w-255, 5), (w-5, 200), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+        
+        # Left hand parameters (faster drawing)
+        left_params = [(k, v) for k, v in parameters.items() if k.startswith('left_')]
+        for i, (param_name, param_data) in enumerate(left_params):
+            y_pos = 30 + (i * 35)
+            bar_width = int(200 * param_data['value'])
+            
+            # Simplified color scheme
+            color = (0, 255, 0) if param_data['value'] < 0.3 else (0, 255, 255) if param_data['value'] < 0.7 else (0, 0, 255)
+            
+            cv2.rectangle(frame, (10, y_pos), (10 + bar_width, y_pos + 20), color, -1)
+            cv2.rectangle(frame, (10, y_pos), (210, y_pos + 20), (100, 100, 100), 1)
+            cv2.putText(frame, f"{param_data['name']}: {int(param_data['value'] * 127)}", 
+                       (15, y_pos + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        
+        # Right hand parameters
+        right_params = [(k, v) for k, v in parameters.items() if k.startswith('right_')]
+        for i, (param_name, param_data) in enumerate(right_params):
+            y_pos = 30 + (i * 35)
+            bar_width = int(200 * param_data['value'])
+            
+            color = (255, 0, 0) if param_data['value'] < 0.3 else (255, 255, 0) if param_data['value'] < 0.7 else (0, 255, 255)
+            
+            cv2.rectangle(frame, (w - 210, y_pos), (w - 210 + bar_width, y_pos + 20), color, -1)
+            cv2.rectangle(frame, (w - 210, y_pos), (w - 10, y_pos + 20), (100, 100, 100), 1)
+            cv2.putText(frame, f"{param_data['name']}: {int(param_data['value'] * 127)}", 
+                       (w - 205, y_pos + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        
+        # Simplified boolean indicators
+        if boolean_params:
+            y_pos = h - 50
+            bool_width = 100
+            
+            active_params = [name for name, active in boolean_params.items() if active]
+            for i, param_name in enumerate(active_params[:3]):  # Limit to 3 for speed
+                x_pos = (w // 2) - (len(active_params) * (bool_width + 10) // 2) + i * (bool_width + 10)
+                
+                cv2.rectangle(frame, (x_pos, y_pos), (x_pos + bool_width, y_pos + 30), (0, 255, 0), -1)
+                cv2.rectangle(frame, (x_pos, y_pos), (x_pos + bool_width, y_pos + 30), (255, 255, 255), 2)
+                cv2.putText(frame, param_name, (x_pos + 5, y_pos + 20), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+    
+    def draw_hand_distance_indicator(self, frame, distance, left_hand_pos, right_hand_pos):
+        if left_hand_pos is None or right_hand_pos is None:
+            return
+        
+        left_point = (int(left_hand_pos[0]), int(left_hand_pos[1]))
+        right_point = (int(right_hand_pos[0]), int(right_hand_pos[1]))
+        
+        intensity = min(1.0, distance / 0.5)
+        color = (int(255 * intensity), int(100 * (1 - intensity)), 0)
+        
+        cv2.line(frame, left_point, right_point, color, 3)
+        cv2.line(frame, left_point, right_point, (255, 255, 255), 1)
+        
+        mid_point = ((left_point[0] + right_point[0]) // 2, 
+                    (left_point[1] + right_point[1]) // 2)
+        
+        cv2.putText(frame, f"Dist: {int(distance * 100)}%", 
+                   (mid_point[0] - 35, mid_point[1] - 5),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
+import mido
+import time
+
+class OptimizedMIDIPort:
+    """Real virtual MIDI output with rate limiting"""
+    
+    def __init__(self, port_name="XepaWave"):
+        self.port_name = port_name
+        self.last_send_time = {}
+        self.min_interval = 0.003  # 3ms for faster response
+
+        try:
+            # Create REAL virtual MIDI port
+            self.midi_out = mido.open_output(port_name, virtual=True)
+            print(f"✓ Virtual MIDI port created: {port_name}")
+        except Exception as e:
+            print(f"⚠ MIDI init failed: {e}")
+            self.midi_out = None
+
+    def send_control_change(self, channel, cc, value):
+        if not self.midi_out:
+            return
+
+        current_time = time.perf_counter()
+        key = f"{channel}_{cc}"
+
+        if key in self.last_send_time:
+            if current_time - self.last_send_time[key] < self.min_interval:
+                return
+
+        self.last_send_time[key] = current_time
+
+        try:
+            msg = mido.Message(
+                'control_change',
+                channel=channel,
+                control=cc,
+                value=max(0, min(127, int(value)))
+            )
+            self.midi_out.send(msg)
+        except Exception as e:
+            pass
+
+    def send_channel_pressure(self, channel, value):
+        if not self.midi_out:
+            return
+
+        try:
+            msg = mido.Message(
+                'aftertouch',
+                channel=channel,
+                value=max(0, min(127, int(value)))
+            )
+            self.midi_out.send(msg)
+        except Exception as e:
+            pass
+
+    def send_all_off(self, channel):
+        self.send_control_change(channel, 123, 0)
+
+    def close(self):
+        if self.midi_out:
+            self.midi_out.close()
+
+class AirwaveCustomController:
+    def __init__(self):
+        # MIDI
+        self.midi_port = None
+        self.midi_channel = 0
+        
+        # Optimized detector (60+ FPS)
+        self.detector = FastSimpleHandDetector(max_fps=60)
+        
+        # Visualizer
+        self.visualizer = OptimizedHandVisualizer()
+        
+        # Custom assignments
+        self.assignments = {
+            'left_x': {'cc': 74, 'min': 0, 'max': 127, 'name': 'Filter Cutoff', 'enabled': True, 'value': 0, 'intensity': 0},
+            'left_y': {'cc': 71, 'min': 0, 'max': 127, 'name': 'Resonance', 'enabled': True, 'value': 0, 'intensity': 0},
+            'left_z': {'cc': 76, 'min': 0, 'max': 127, 'name': 'LFO Rate', 'enabled': True, 'value': 0, 'intensity': 0},
+            'right_x': {'cc': 1, 'min': 0, 'max': 127, 'name': 'Modulation', 'enabled': True, 'value': 0, 'intensity': 0},
+            'right_y': {'cc': 11, 'min': 0, 'max': 127, 'name': 'Expression', 'enabled': True, 'value': 0, 'intensity': 0},
+            'right_z': {'cc': 128, 'min': 0, 'max': 127, 'name': 'Aftertouch', 'enabled': True, 'value': 0, 'intensity': 0},
+            'distance': {'cc': 91, 'min': 0, 'max': 127, 'name': 'Reverb', 'enabled': False, 'value': 0, 'intensity': 0}
+        }
+        
+        # Boolean parameters
+        self.boolean_params = {
+            'sustain': {'cc': 64, 'enabled': True, 'active': False, 'threshold': 0.3, 'name': 'Sustain'},
+            'sostenuto': {'cc': 66, 'enabled': True, 'active': False, 'threshold': 0.3, 'name': 'Sostenuto'},
+            'soft_pedal': {'cc': 67, 'enabled': True, 'active': False, 'threshold': 0.3, 'name': 'Soft Pedal'},
+            'portamento': {'cc': 65, 'enabled': True, 'active': False, 'threshold': 0.3, 'name': 'Portamento'}
+        }
+        
+        # MIDI CC list
+        self.midi_cc_list = [
+            (1, "Modulation Wheel"), (2, "Breath Controller"), (4, "Foot Pedal"),
+            (5, "Portamento Time"), (7, "Volume"), (8, "Balance"), (10, "Pan"),
+            (11, "Expression"), (64, "Sustain Pedal"), (65, "Portamento"),
+            (66, "Sostenuto"), (67, "Soft Pedal"), (71, "Resonance"),
+            (72, "Release Time"), (73, "Attack Time"), (74, "Filter Cutoff"),
+            (75, "Decay Time"), (76, "LFO Rate"), (77, "LFO Depth"),
+            (78, "LFO Amount"), (91, "Reverb"), (92, "Tremolo"), (93, "Chorus")
+        ]
+        
+        # Smoothing (faster response)
+        self.smooth_factors = 0.5  # Increased from 0.3 for faster response
+        self.previous_values = {}
+        
+        # State
+        self.running = False
+        self.cap = None
+        self.last_midi_time = {}
+        
+        # Performance metrics
+        self.fps = 0
+        self.last_fps_time = time.time()
+        self.frame_count = 0
+        self.processing_time = 0
+        
+        # Load config
+        self.config_file = "airwave_config.json"
+        self.load_config()
+    
+    def load_config(self):
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r') as f:
+                    saved = json.load(f)
+                    if 'assignments' in saved:
+                        for key, value in saved['assignments'].items():
+                            if key in self.assignments:
+                                self.assignments[key].update(value)
+                    if 'boolean_params' in saved:
+                        for key, value in saved['boolean_params'].items():
+                            if key in self.boolean_params:
+                                self.boolean_params[key].update(value)
+                print("✓ Configuration loaded")
+            except Exception as e:
+                print(f"Config load error: {e}")
+    
+    def save_config(self):
+        try:
+            save_dict = {
+                'assignments': {},
+                'boolean_params': {}
+            }
+            
+            for key, value in self.assignments.items():
+                clean_value = {k: v for k, v in value.items() 
+                             if not k.startswith('_gui') and k != 'value' and k != 'intensity'}
+                save_dict['assignments'][key] = clean_value
+            
+            for key, value in self.boolean_params.items():
+                clean_value = {k: v for k, v in value.items() 
+                             if not k.startswith('_gui') and k != 'active'}
+                save_dict['boolean_params'][key] = clean_value
+            
+            with open(self.config_file, 'w') as f:
+                json.dump(save_dict, f, indent=2)
+            print("✓ Configuration saved")
+            return True
+        except Exception as e:
+            print(f"Save error: {e}")
+            return False
+    
+    def _send_control_change(self, cc, value):
+        if self.midi_port:
+            current_time = time.perf_counter()
+            key = f"cc_{cc}"
+            if key in self.last_midi_time:
+                if current_time - self.last_midi_time[key] < 0.005:
+                    return
+            self.last_midi_time[key] = current_time
+            value = max(0, min(127, int(value)))
+            self.midi_port.send_control_change(self.midi_channel, cc, value)
+    
+    def _send_channel_pressure(self, value):
+        if self.midi_port:
+            value = max(0, min(127, int(value)))
+            self.midi_port.send_channel_pressure(self.midi_channel, value)
+    
+    def _send_boolean_control(self, param_name, active):
+        if param_name in self.boolean_params:
+            param = self.boolean_params[param_name]
+            if param['enabled'] and param['active'] != active:
+                param['active'] = active
+                value = 127 if active else 0
+                self._send_control_change(param['cc'], value)
+    
+    def _smooth_value(self, param_name, new_value):
+        if param_name in self.previous_values:
+            smoothed = self.previous_values[param_name] * (1 - self.smooth_factors) + new_value * self.smooth_factors
+        else:
+            smoothed = new_value
+        self.previous_values[param_name] = smoothed
+        return smoothed
+    
+    def map_to_midi(self, value, min_val=0, max_val=1, midi_min=0, midi_max=127):
+        mapped = midi_min + (value - min_val) * (midi_max - midi_min) / (max_val - min_val)
+        return max(midi_min, min(midi_max, mapped))
+    
+    def detect_boolean_gestures(self, hand_landmarks, handedness):
+        if not hand_landmarks:
+            return
+        
+        thumb_tip = hand_landmarks.landmark[4]
+        index_tip = hand_landmarks.landmark[8]
+        
+        distance = math.sqrt(
+            (thumb_tip.x - index_tip.x) ** 2 +
+            (thumb_tip.y - index_tip.y) ** 2
+        )
+        
+        if handedness == "Left":
+            self._send_boolean_control('sustain', distance < 0.05)
+            self._send_boolean_control('soft_pedal', distance < 0.03)
+        elif handedness == "Right" and len(hand_landmarks.landmark) > 12:
+            middle_tip = hand_landmarks.landmark[12]
+            distance2 = math.sqrt(
+                (middle_tip.x - index_tip.x) ** 2 +
+                (middle_tip.y - index_tip.y) ** 2
+            )
+            self._send_boolean_control('sostenuto', distance2 < 0.05)
+            self._send_boolean_control('portamento', distance2 < 0.03)
+    
+    def process_frame(self, frame):
+        start_time = time.time()
+        
+        h, w, _ = frame.shape
+        display_frame = np.zeros((h, w, 3), dtype=np.uint8)
+        
+        # Fast detection
+        results = self.detector.detect(frame)
+        
+        left_hand = None
+        right_hand = None
+        left_wrist_pos = None
+        right_wrist_pos = None
+        current_params = {}
+        
+        if results and results.multi_hand_landmarks:
+            for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
+                if results.multi_handedness and idx < len(results.multi_handedness):
+                    handedness = results.multi_handedness[idx].classification[0].label
+                else:
+                    handedness = "Right" if idx == 0 else "Left"
+                
+                self.detect_boolean_gestures(hand_landmarks, handedness)
+                
+                wrist = hand_landmarks.landmark[0]
+                hand_id = f"{handedness.lower()}_hand"
+                
+                if handedness == "Left":
+                    left_hand = hand_landmarks
+                    left_wrist_pos = (wrist.x * w, wrist.y * h)
+                    
+                    for axis, param_key in [('x', 'left_x'), ('y', 'left_y'), ('z', 'left_z')]:
+                        if self.assignments[param_key]['enabled']:
+                            if axis == 'x':
+                                val = wrist.x
+                            elif axis == 'y':
+                                val = 1 - wrist.y
+                            else:
+                                val = (wrist.z + 0.5) / 1.0
+                            
+                            value = self.map_to_midi(val, 0, 1,
+                                                   self.assignments[param_key]['min'],
+                                                   self.assignments[param_key]['max'])
+                            value = self._smooth_value(param_key, value)
+                            normalized = value / 127.0
+                            
+                            if self.assignments[param_key]['cc'] == 128:
+                                self._send_channel_pressure(value)
+                            else:
+                                self._send_control_change(self.assignments[param_key]['cc'], value)
+                            
+                            self.assignments[param_key]['value'] = normalized
+                            self.assignments[param_key]['intensity'] = normalized
+                            current_params[param_key] = self.assignments[param_key]
+                
+                else:
+                    right_hand = hand_landmarks
+                    right_wrist_pos = (wrist.x * w, wrist.y * h)
+                    
+                    for axis, param_key in [('x', 'right_x'), ('y', 'right_y'), ('z', 'right_z')]:
+                        if self.assignments[param_key]['enabled']:
+                            if axis == 'x':
+                                val = wrist.x
+                            elif axis == 'y':
+                                val = 1 - wrist.y
+                            else:
+                                val = (wrist.z + 0.5) / 1.0
+                            
+                            value = self.map_to_midi(val, 0, 1,
+                                                   self.assignments[param_key]['min'],
+                                                   self.assignments[param_key]['max'])
+                            value = self._smooth_value(param_key, value)
+                            normalized = value / 127.0
+                            
+                            if self.assignments[param_key]['cc'] == 128:
+                                self._send_channel_pressure(value)
+                            else:
+                                self._send_control_change(self.assignments[param_key]['cc'], value)
+                            
+                            self.assignments[param_key]['value'] = normalized
+                            self.assignments[param_key]['intensity'] = normalized
+                            current_params[param_key] = self.assignments[param_key]
+        
+        # Process distance
+        if left_hand and right_hand and self.assignments['distance']['enabled']:
+            left_wrist = left_hand.landmark[0]
+            right_wrist = right_hand.landmark[0]
+            distance = math.sqrt(
+                (left_wrist.x - right_wrist.x) ** 2 +
+                (left_wrist.y - right_wrist.y) ** 2
+            )
+            distance = min(1.0, distance * 2)
+            value = self.map_to_midi(distance, 0, 1,
+                                    self.assignments['distance']['min'],
+                                    self.assignments['distance']['max'])
+            self._send_control_change(self.assignments['distance']['cc'], value)
+            self.assignments['distance']['value'] = distance
+            
+            if left_wrist_pos and right_wrist_pos:
+                self.visualizer.draw_hand_distance_indicator(
+                    display_frame, distance, left_wrist_pos, right_wrist_pos
+                )
+        
+        # Draw skeletons
+        if left_hand:
+            self.visualizer.draw_hand_skeleton(display_frame, left_hand, "Left", current_params, "left_hand")
+        if right_hand:
+            self.visualizer.draw_hand_skeleton(display_frame, right_hand, "Right", current_params, "right_hand")
+        
+        # Draw effects
+        self.visualizer.draw_all_effects(display_frame)
+        
+        # Draw feedback
+        boolean_states = {self.boolean_params[k]['name']: self.boolean_params[k]['active'] 
+                         for k in ['sustain', 'sostenuto', 'soft_pedal', 'portamento']}
+        self.visualizer.draw_parameter_feedback(display_frame, current_params, boolean_states)
+        
+        # Draw performance metrics and info
+        processing_time = (time.time() - start_time) * 1000
+        self.update_fps()
+        cv2.putText(display_frame, f"FPS: {self.fps} | Latency: {int(processing_time)}ms", 
+                   (w - 180, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 255, 100), 1)
+        cv2.putText(display_frame, "Airwave MIDI Controller (High-Speed)", (10, 20), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(display_frame, "Q: Quit | 60+ FPS Mode", (10, h - 10),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 200), 1)
+        
+        return display_frame
+    
+    def update_fps(self):
+        self.frame_count += 1
+        current_time = time.time()
+        if current_time - self.last_fps_time >= 1.0:
+            self.fps = self.frame_count
+            self.frame_count = 0
+            self.last_fps_time = current_time
+    
+    def run_camera(self):
+        """High-performance camera capture"""
+        self.cap = cv2.VideoCapture(0)
+        
+        if not self.cap.isOpened():
+            messagebox.showerror("Error", "Could not open webcam")
+            return
+        
+        # Optimized camera settings for speed
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        self.cap.set(cv2.CAP_PROP_FPS, 60)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffer for lower latency
+        
+        print("\n🎥 High-Speed Camera Active! MIDI is LIVE")
+        print("   Optimized for 60+ FPS performance")
+        print("   Move your hands to control parameters")
+        print("   Pinch gestures for sustain/sostenuto\n")
+        
+        frame_time = 1.0 / 60
+        last_frame_time = time.time()
+        
+        while self.running:
+            ret, frame = self.cap.read()
+            if not ret:
+                break
+            
+            # Maintain consistent frame rate
+            current_time = time.time()
+            time_diff = current_time - last_frame_time
+            if time_diff < frame_time:
+                time.sleep(frame_time - time_diff)
+            
+            frame = cv2.flip(frame, 1)
+            display_frame = self.process_frame(frame)
+            
+            cv2.imshow('Airwave MIDI Controller', display_frame)
+            
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+            
+            last_frame_time = time.time()
+        
+        if self.cap:
+            self.cap.release()
+        cv2.destroyAllWindows()
+    
+    def start(self):
+        self.running = True
+        self.camera_thread = threading.Thread(target=self.run_camera, daemon=True)
+        self.camera_thread.start()
+    
+    def stop(self):
+        self.running = False
+        
+        for param_name in self.boolean_params:
+            self._send_boolean_control(param_name, False)
+        
+        if self.midi_port:
+            self.midi_port.send_all_off(self.midi_channel)
+            time.sleep(0.05)
+            self.midi_port.close()
+        print("Controller stopped")
+    
+    def connect_midi(self):
+        port_name = "Xepawave"
+        self.midi_port = OptimizedMIDIPort(port_name)
+        return self.midi_port.midi_out is not None
+
+class AirwaveGUI:
+    def __init__(self):
+        self.controller = AirwaveCustomController()
+        self.root = tk.Tk()
+        self.root.title("Airwave MIDI Controller - High Speed")
+        self.root.geometry("1000x750")
+        self.root.configure(bg='#2b2b2b')
+        self.setup_gui()
+    
+    def setup_gui(self):
+        # Title
+        title = tk.Label(self.root, text="🎛️ Airwave MIDI Controller - High Speed Edition", 
+                        font=('Arial', 18, 'bold'), bg='#2b2b2b', fg='white')
+        title.pack(pady=10)
+        
+        # Performance indicator
+        perf_frame = tk.Frame(self.root, bg='#1a1a1a', relief=tk.RAISED, bd=1)
+        perf_frame.pack(pady=5, padx=10, fill=tk.X)
+        
+        tk.Label(perf_frame, text="⚡ Optimized for 60+ FPS | Low Latency Mode", 
+                font=('Arial', 10), bg='#1a1a1a', fg='#4CAF50').pack(pady=5)
+        
+        # MIDI Connection Frame
+        midi_frame = tk.Frame(self.root, bg='#3c3c3c', relief=tk.RAISED, bd=2)
+        midi_frame.pack(pady=10, padx=10, fill=tk.X)
+        
+        tk.Label(midi_frame, text="MIDI Settings", font=('Arial', 12, 'bold'),
+                bg='#3c3c3c', fg='white').pack(side=tk.LEFT, padx=10)
+        
+        self.midi_status = tk.Label(midi_frame, text="● Ready to Connect", 
+                                   bg='#3c3c3c', fg='orange')
+        self.midi_status.pack(side=tk.LEFT, padx=10)
+        
+        tk.Button(midi_frame, text="Start Controller", command=self.start_controller,
+                 bg='#4CAF50', fg='white', padx=20).pack(side=tk.RIGHT, padx=5)
+        
+        # Info frame
+        info_frame = tk.Frame(self.root, bg='#1a1a1a', relief=tk.RAISED, bd=1)
+        info_frame.pack(pady=10, padx=10, fill=tk.X)
+        
+        tk.Label(info_frame, text="🎹 High-Performance Features", font=('Arial', 10, 'bold'),
+                bg='#1a1a1a', fg='#4CAF50').pack(anchor=tk.W, padx=10, pady=5)
+        tk.Label(info_frame, text="• 60+ FPS with optimized hand detection",
+                bg='#1a1a1a', fg='white', anchor=tk.W).pack(anchor=tk.W, padx=20)
+        tk.Label(info_frame, text="• Motion trails and visual feedback",
+                bg='#1a1a1a', fg='white', anchor=tk.W).pack(anchor=tk.W, padx=20)
+        tk.Label(info_frame, text="• Pinch gestures for sustain/sostenuto",
+                bg='#1a1a1a', fg='#FFD700', anchor=tk.W).pack(anchor=tk.W, padx=20)
+        tk.Label(info_frame, text="• Full MIDI CC mapping for all parameters",
+                bg='#1a1a1a', fg='white', anchor=tk.W).pack(anchor=tk.W, padx=20)
+        
+        # Control assignments tabs
+        notebook = ttk.Notebook(self.root)
+        notebook.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
+        
+        # Create tabs
+        for param in ['left_x', 'left_y', 'left_z', 'right_x', 'right_y', 'right_z', 'distance']:
+            self.create_assignment_tab(notebook, param.replace('_', ' ').title(), param)
+        
+        # Boolean controls tab
+        boolean_frame = tk.Frame(notebook, bg='#2b2b2b')
+        notebook.add(boolean_frame, text="Boolean Controls")
+        self.create_boolean_tab(boolean_frame)
+        
+        # Save/Load buttons
+        button_frame = tk.Frame(self.root, bg='#2b2b2b')
+        button_frame.pack(pady=10)
+        
+        tk.Button(button_frame, text="💾 Save Configuration", 
+                 command=self.save_config, bg='#4CAF50', fg='white', 
+                 padx=30, pady=5).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(button_frame, text="📂 Load Configuration", 
+                 command=self.load_config, bg='#FF9800', fg='white',
+                 padx=30, pady=5).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(button_frame, text="⏹️ Stop Controller", 
+                 command=self.stop_controller, bg='#f44336', fg='white',
+                 padx=30, pady=5).pack(side=tk.LEFT, padx=5)
+        
+        # Status bar
+        self.status_bar = tk.Label(self.root, text="Ready - Press Start for 60+ FPS MIDI control", 
+                                   bg='#1a1a1a', fg='white', relief=tk.SUNKEN)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+    
+    def create_boolean_tab(self, parent):
+        frame = tk.Frame(parent, bg='#2b2b2b')
+        frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        tk.Label(frame, text="Gesture-Controlled Boolean Parameters", 
+                font=('Arial', 14, 'bold'), bg='#2b2b2b', fg='white').pack(pady=10)
+        
+        tk.Label(frame, text="Pinch fingers to trigger these effects", 
+                bg='#2b2b2b', fg='#FFD700').pack(pady=5)
+        
+        for param_name, param_data in self.controller.boolean_params.items():
+            param_frame = tk.LabelFrame(frame, text=param_data['name'], 
+                                       bg='#3c3c3c', fg='white')
+            param_frame.pack(pady=10, fill=tk.X)
+            
+            enabled_var = tk.BooleanVar(value=param_data['enabled'])
+            tk.Checkbutton(param_frame, text="Enable", variable=enabled_var,
+                          bg='#3c3c3c', fg='white', selectcolor='#3c3c3c',
+                          command=lambda p=param_name, v=enabled_var: self.toggle_boolean_enabled(p, v)).pack(side=tk.LEFT, padx=10)
+            
+            tk.Label(param_frame, text="MIDI CC:", bg='#3c3c3c', fg='white').pack(side=tk.LEFT, padx=10)
+            cc_var = tk.StringVar(value=f"{param_data['cc']} - {next((name for cc, name in self.controller.midi_cc_list if cc == param_data['cc']), 'Custom')}")
+            cc_combo = ttk.Combobox(param_frame, textvariable=cc_var, width=30)
+            cc_values = [f"{cc} - {name}" for cc, name in self.controller.midi_cc_list]
+            cc_combo['values'] = cc_values
+            cc_combo.pack(side=tk.LEFT, padx=10)
+            
+            param_data['_gui_vars'] = {'enabled': enabled_var, 'cc': cc_var}
+            
+            tk.Button(param_frame, text="Apply", 
+                     command=lambda p=param_name: self.apply_boolean_settings(p),
+                     bg='#4CAF50', fg='white').pack(side=tk.RIGHT, padx=10)
+    
+    def create_assignment_tab(self, notebook, title, param_key):
+        frame = tk.Frame(notebook, bg='#2b2b2b')
+        notebook.add(frame, text=title)
+        
+        info_frame = tk.Frame(frame, bg='#2b2b2b')
+        info_frame.pack(pady=20, padx=20, fill=tk.X)
+        
+        enabled_var = tk.BooleanVar(value=self.controller.assignments[param_key]['enabled'])
+        tk.Checkbutton(info_frame, text="Enable", variable=enabled_var,
+                      bg='#2b2b2b', fg='white', selectcolor='#2b2b2b',
+                      command=lambda: self.toggle_enabled(param_key, enabled_var)).pack(anchor=tk.W)
+        
+        cc_frame = tk.LabelFrame(frame, text="MIDI Control Change", bg='#3c3c3c', fg='white')
+        cc_frame.pack(pady=10, padx=20, fill=tk.X)
+        
+        current_cc = self.controller.assignments[param_key]['cc']
+        cc_var = tk.StringVar(value=str(current_cc) if current_cc != 128 else "Aftertouch")
+        
+        cc_combo = ttk.Combobox(cc_frame, textvariable=cc_var, width=40)
+        cc_values = [f"{cc} - {name}" for cc, name in self.controller.midi_cc_list]
+        cc_values.insert(0, "128 - Aftertouch (Channel Pressure)")
+        cc_combo['values'] = cc_values
+        cc_combo.pack(pady=10, padx=10)
+        
+        range_frame = tk.LabelFrame(frame, text="MIDI Range", bg='#3c3c3c', fg='white')
+        range_frame.pack(pady=10, padx=20, fill=tk.X)
+        
+        tk.Label(range_frame, text="Min:", bg='#3c3c3c', fg='white').grid(row=0, column=0, padx=5, pady=5)
+        min_var = tk.IntVar(value=self.controller.assignments[param_key]['min'])
+        tk.Scale(range_frame, from_=0, to=127, orient=tk.HORIZONTAL, 
+                variable=min_var, bg='#3c3c3c', fg='white', length=300).grid(row=0, column=1, padx=5, pady=5)
+        
+        tk.Label(range_frame, text="Max:", bg='#3c3c3c', fg='white').grid(row=1, column=0, padx=5, pady=5)
+        max_var = tk.IntVar(value=self.controller.assignments[param_key]['max'])
+        tk.Scale(range_frame, from_=0, to=127, orient=tk.HORIZONTAL,
+                variable=max_var, bg='#3c3c3c', fg='white', length=300).grid(row=1, column=1, padx=5, pady=5)
+        
+        name_frame = tk.LabelFrame(frame, text="Display Name", bg='#3c3c3c', fg='white')
+        name_frame.pack(pady=10, padx=20, fill=tk.X)
+        
+        name_var = tk.StringVar(value=self.controller.assignments[param_key]['name'])
+        tk.Entry(name_frame, textvariable=name_var, width=30).pack(pady=10, padx=10)
+        
+        self.controller.assignments[param_key]['_gui_vars'] = {
+            'enabled': enabled_var, 'cc': cc_var, 'min': min_var, 'max': max_var, 'name': name_var
+        }
+        
+        tk.Button(frame, text="Apply Settings", 
+                 command=lambda: self.apply_settings(param_key),
+                 bg='#4CAF50', fg='white', padx=20).pack(pady=10)
+    
+    def toggle_enabled(self, param_key, var):
+        self.controller.assignments[param_key]['enabled'] = var.get()
+    
+    def toggle_boolean_enabled(self, param_name, var):
+        self.controller.boolean_params[param_name]['enabled'] = var.get()
+    
+    def apply_settings(self, param_key):
+        vars_dict = self.controller.assignments[param_key]['_gui_vars']
+        cc_text = vars_dict['cc'].get()
+        
+        if "Aftertouch" in cc_text:
+            cc_value = 128
+        else:
+            try:
+                cc_value = int(cc_text.split(' - ')[0])
+            except:
+                cc_value = 1
+        
+        self.controller.assignments[param_key]['cc'] = cc_value
+        self.controller.assignments[param_key]['min'] = vars_dict['min'].get()
+        self.controller.assignments[param_key]['max'] = vars_dict['max'].get()
+        self.controller.assignments[param_key]['name'] = vars_dict['name'].get()
+        self.status_bar.config(text=f"Updated {param_key} settings")
+    
+    def apply_boolean_settings(self, param_name):
+        vars_dict = self.controller.boolean_params[param_name]['_gui_vars']
+        cc_text = vars_dict['cc'].get()
+        try:
+            cc_value = int(cc_text.split(' - ')[0])
+        except:
+            cc_value = 64
+        
+        self.controller.boolean_params[param_name]['cc'] = cc_value
+        self.status_bar.config(text=f"Updated {param_name} settings")
+    
+    def save_config(self):
+        if self.controller.save_config():
+            self.status_bar.config(text="✓ Configuration saved!")
+        else:
+            self.status_bar.config(text="✗ Error saving configuration!")
+    
+    def load_config(self):
+        self.controller.load_config()
+        self.update_gui_from_config()
+        self.status_bar.config(text="✓ Configuration loaded!")
+    
+    def update_gui_from_config(self):
+        for param_key, assignment in self.controller.assignments.items():
+            if '_gui_vars' in assignment:
+                vars_dict = assignment['_gui_vars']
+                vars_dict['enabled'].set(assignment['enabled'])
+                
+                if assignment['cc'] == 128:
+                    cc_display = "128 - Aftertouch (Channel Pressure)"
+                else:
+                    cc_display = f"{assignment['cc']} - " + next(
+                        (name for cc, name in self.controller.midi_cc_list if cc == assignment['cc']),
+                        "Custom"
+                    )
+                
+                vars_dict['cc'].set(cc_display)
+                vars_dict['min'].set(assignment['min'])
+                vars_dict['max'].set(assignment['max'])
+                vars_dict['name'].set(assignment['name'])
+        
+        for param_name, param_data in self.controller.boolean_params.items():
+            if '_gui_vars' in param_data:
+                vars_dict = param_data['_gui_vars']
+                vars_dict['enabled'].set(param_data['enabled'])
+                vars_dict['cc'].set(f"{param_data['cc']} - " + next(
+                    (name for cc, name in self.controller.midi_cc_list if cc == param_data['cc']),
+                    "Custom"
+                ))
+    
+    def start_controller(self):
+        if self.controller.connect_midi():
+            self.midi_status.config(text="✓ Active - High Speed MIDI Ready", fg='#4CAF50')
+            self.status_bar.config(text="✓ High-speed controller running! 60+ FPS expected")
+            self.controller.start()
+        else:
+            self.midi_status.config(text="⚠ MIDI Error - Check system", fg='red')
+            messagebox.showwarning("Warning", "No MIDI output found. Running in simulation mode.")
+            self.controller.start()
+            self.midi_status.config(text="⚠ Simulation Mode", fg='orange')
+    
+    def stop_controller(self):
+        self.controller.stop()
+        self.midi_status.config(text="● Stopped", fg='orange')
+        self.status_bar.config(text="Controller stopped")
+    
+    def run(self):
+        self.root.mainloop()
+
+def main():
+    print("""
+    ╔══════════════════════════════════════════════════════════════╗
+    ║         AIRWAVE MIDI CONTROLLER - HIGH PERFORMANCE          ║
+    ║             60+ FPS | Low Latency | Beautiful UI            ║
+    ╚══════════════════════════════════════════════════════════════╝
+    
+    Performance Optimizations:
+    ✓ 60+ FPS camera capture with reduced buffer
+    ✓ Optimized MediaPipe detection (lower confidence thresholds)
+    ✓ Faster smoothing and MIDI rate limiting
+    ✓ Simplified visual effects for better performance
+    ✓ Optimized hand skeleton drawing
+    
+    Starting High-Performance GUI...
+    """)
+    
+    gui = AirwaveGUI()
+    gui.run()
+
+if __name__ == "__main__":
+    main()

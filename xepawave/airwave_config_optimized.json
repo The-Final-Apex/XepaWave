@@ -1,0 +1,67 @@
+{
+  "assignments": {
+    "left_x": {
+      "cc": 74,
+      "min": 0,
+      "max": 127,
+      "name": "Filter Cutoff",
+      "enabled": true
+    },
+    "left_y": {
+      "cc": 71,
+      "min": 0,
+      "max": 127,
+      "name": "Resonance",
+      "enabled": true
+    },
+    "left_z": {
+      "cc": 76,
+      "min": 0,
+      "max": 127,
+      "name": "LFO Rate",
+      "enabled": true
+    },
+    "right_x": {
+      "cc": 1,
+      "min": 0,
+      "max": 127,
+      "name": "Modulation",
+      "enabled": true
+    },
+    "right_y": {
+      "cc": 11,
+      "min": 0,
+      "max": 127,
+      "name": "Expression",
+      "enabled": true
+    },
+    "right_z": {
+      "cc": 128,
+      "min": 0,
+      "max": 127,
+      "name": "Aftertouch",
+      "enabled": true
+    },
+    "distance": {
+      "cc": 91,
+      "min": 0,
+      "max": 127,
+      "name": "Reverb",
+      "enabled": false
+    }
+  },
+  "boolean_params": {
+    "sustain": {
+      "cc": 64,
+      "enabled": true,
+      "threshold": 0.3,
+      "name": "Sustain"
+    },
+    "sostenuto": {
+      "cc": 66,
+      "enabled": true,
+      "threshold": 0.3,
+      "name": "Sostenuto"
+    }
+  }
+}

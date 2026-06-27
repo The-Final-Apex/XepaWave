@@ -1,0 +1,58 @@
+{
+  "left_x": {
+    "cc": 1,
+    "min": 35,
+    "max": 91,
+    "name": "Filter Cutoff",
+    "enabled": true
+  },
+  "left_y": {
+    "cc": 71,
+    "min": 0,
+    "max": 127,
+    "name": "Resonance",
+    "enabled": true
+  },
+  "left_z": {
+    "cc": 76,
+    "min": 0,
+    "max": 127,
+    "name": "LFO Rate",
+    "enabled": true
+  },
+  "right_x": {
+    "cc": 1,
+    "min": 12,
+    "max": 107,
+    "name": "Modulation",
+    "enabled": true
+  },
+  "right_y": {
+    "cc": 66,
+    "min": 36,
+    "max": 104,
+    "name": "Sostenuto",
+    "enabled": true
+  },
+  "right_z": {
+    "cc": 128,
+    "min": 0,
+    "max": 127,
+    "name": "Aftertouch",
+    "enabled": true
+  },
+  "distance": {
+    "cc": 91,
+    "min": 0,
+    "max": 127,
+    "name": "Reverb",
+    "enabled": false
+  },
+  "hand_tilt": {
+    "cc": 93,
+    "min": 0,
+    "max": 127,
+    "name": "Chorus",
+    "enabled": false
+  }
+}

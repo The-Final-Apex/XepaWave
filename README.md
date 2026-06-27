@@ -31,8 +31,8 @@ Download and install Python 3.8+ from [python.org](https://python.org). Ensure P
 Clone the repository or download the source code:
 
 ```bash
-git clone https://github.com/yourusername/airwave-midi-controller.git
-cd airwave-midi-controller
+git clone https://github.com/The-Final-Apex/XepaWave.git
+cd XepaWave
 ```
 
 ### Step 3: Install Dependencies
@@ -50,7 +50,7 @@ This installs the required libraries for camera processing, hand tracking, and M
 Start the program with:
 
 ```bash
-python airwave_controller.py
+python main.py
 ```
 
 ---
@@ -168,7 +168,7 @@ Press the **"Stop Controller"** button or press **'Q'** in the camera window to 
 
 ## Support
 
-For issues or feature requests, please refer to the project repository or contact the development team.
+For issues or feature requests, please refer to the project repository or contact the me.
 
 ---
 

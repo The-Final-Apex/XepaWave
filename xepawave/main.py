@@ -963,7 +963,7 @@ class AirwaveGUI:
     def start_controller(self):
         if self.controller.connect_midi():
             self.midi_status.config(text="✓ Active - High Speed MIDI Ready", fg='#4CAF50')
-            self.status_bar.config(text="✓ High-speed controller running! 60+ FPS expected")
+            self.status_bar.config(text="✓ High-speed controller running!")
             self.controller.start()
         else:
             self.midi_status.config(text="⚠ MIDI Error - Check system", fg='red')
@@ -981,19 +981,7 @@ class AirwaveGUI:
 
 def main():
     print("""
-    ╔══════════════════════════════════════════════════════════════╗
-    ║         AIRWAVE MIDI CONTROLLER - HIGH PERFORMANCE          ║
-    ║             Probable  Low Latency | Beautiful UI            ║
-    ╚══════════════════════════════════════════════════════════════╝
-    
-    Performance Optimizations:
-    FPS camera capture with reduced buffer
-    Optimized MediaPipe detection (lower confidence thresholds)
-    Faster smoothing and MIDI rate limiting
-    Simplified visual effects for better performance
-    Optimized hand skeleton drawing
-    
-    Starting High-Performance GUI...
+contooller started
     """)
     
     gui = AirwaveGUI()
